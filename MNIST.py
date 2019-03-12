@@ -1,5 +1,8 @@
 import tensorflow as tf
 import numpy as np
+#import matplotlib
+#matplotlib.use('tkagg')
+#import matplotlib.pyplot as plt
 
 from tensorflow.examples.tutorials.mnist import input_data
 mnist = input_data.read_data_sets("./mnist/data/", one_hot=True)
@@ -18,12 +21,14 @@ rate_place_holder = tf.placeholder(tf.int32, [])
 
 W1 = tf.Variable(tf.random_normal([784, 512], stddev=0.01))
 B1 = tf.Variable(tf.zeros([512]))
-L1 = tf.nn.relu(tf.matmul(X, W1) + B1)
+L1_prev = tf.matmul(X, W1)
+L1 = tf.nn.relu(L1_prev + B1)
 L1 = tf.nn.dropout(L1, keep_prob)
 
 W2 = tf.Variable(tf.random_normal([512, 256], stddev=0.01))
 B2 = tf.Variable(tf.zeros([256]))
-L2 = tf.nn.relu(tf.matmul(L1, W2) + B2)
+L2_prev = tf.matmul(L1, W2)
+L2 = tf.nn.relu(L2_prev + B2)
 L2 = tf.nn.dropout(L2, keep_prob)
 
 W3 = tf.Variable(tf.random_normal([256, 10], stddev=0.01))
@@ -43,8 +48,10 @@ yadv = Y
 '''''''''
 Build replica model for comparing
 '''''''''
-L1_comp = tf.nn.relu(tf.matmul(X_small, W1) + B1)
-L2_comp = tf.nn.relu(tf.matmul(L1_comp, W2) + B2)
+L1_comp_prev = tf.matmul(X_small, W1)
+L1_comp = tf.nn.relu(L1_comp_prev + B1)
+L2_comp_prev = tf.matmul(L1_comp, W2)
+L2_comp = tf.nn.relu(L2_comp_prev + B2)
 model_comp = tf.matmul(L2_comp, W3) + B3
 
 cost_comp = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=model_comp, labels=Y_small))
@@ -53,92 +60,93 @@ xadv_small = tf.stop_gradient(X_small + 0.3*tf.sign(grad_comp))
 xadv_small = tf.clip_by_value(xadv_small, 0., 1.)
 xadv_small = tf.reshape(xadv_small, [-1, 784])
 
-L1_comp_adv = tf.nn.relu(tf.matmul(xadv_small, W1) + B1)
-L2_comp_adv = tf.nn.relu(tf.matmul(L1_comp_adv, W2) + B2)
+L1_comp_prev_adv = tf.matmul(xadv_small, W1)
+L1_comp_adv = tf.nn.relu(L1_comp_prev_adv + B1)
+L2_comp_prev_adv = tf.matmul(L1_comp_adv, W2)
+L2_comp_adv = tf.nn.relu(L2_comp_prev_adv + B2)
 model_comp_adv = tf.matmul(L2_comp_adv, W3) + B3
+
+'''''''''
+Magnitude Based Activation Pruning Model
+'''''''''
+def MBAP(pruning_rate_per_layer):
+    #L1_ap, _ = utils.prune(L1, pruning_rate_per_layer)
+    L1_ap = L1
+    L2_ap = tf.nn.relu(tf.matmul(L1_ap, W2) + B2)
+    pruned_L2_ap, _ = utils.prune(L2_ap, pruning_rate_per_layer)
+    model_ap = tf.matmul(pruned_L2_ap, W3) + B3
+    return model_ap
 
 '''''''''
 Magnitude Based Feature Drop Model
 '''''''''
-def MBAP(pruning_rate_per_layer):
+def MBFD(pruning_rate_per_layer):
     #L1_mb, _ = utils.prune(L1, pruning_rate_per_layer)
     L1_mb = L1
-    L2_prev = tf.matmul(L1_mb, W2)
-    pruned_L2_prev, _ = utils.prune(L2_prev, pruning_rate_per_layer)
-    L2_mb = tf.nn.relu(pruned_L2_prev + B2)
+    L2_mb_prev = tf.matmul(L1_mb, W2)
+    pruned_L2_mb_prev, _ = utils.prune(L2_mb_prev, pruning_rate_per_layer)
+    L2_mb = tf.nn.relu(pruned_L2_mb_prev + B2)
     model_mb = tf.matmul(L2_mb, W3) + B3
     return model_mb
 
-model_mb = MBAP(rate_place_holder)
-#cost_mb = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=model_mb, labels=Y))
 '''''''''
 Adversarial Feature Drop Model
 '''''''''
 def compare(bool_place_holder):
     diff = tf.norm(model_comp - model_comp_adv, 2) 
-    grad_on_diff = tf.gradients(diff, [L1_comp_adv, L2_comp_adv]) 
-    comp_vec_1 = tf.cond(bool_place_holder, lambda: tf.reduce_sum(tf.abs(grad_of_diff[0]), axis=0) lambda: tf.reduce_sum(tf.abs(L1_comp - L1_comp_adv), axis=0)
-    comp_vec_2 = tf.cond(bool_place_holder, lambda: tf.reduce_sum(tf.abs(grad_of_diff[1]), axis=0) lambda: tf.reduce_sum(tf.abs(L2_comp - L2_comp_adv), axis=0)
+    grad_on_diff = tf.gradients(diff, [L1_comp_prev_adv, L2_comp_prev_adv]) 
+    comp_vec_1 = tf.cond(bool_place_holder, lambda: tf.reduce_sum(tf.abs(grad_on_diff[0]), axis=0) lambda: tf.reduce_sum(tf.abs(L1_comp_prev - L1_comp_prev_adv), axis=0)
+    comp_vec_2 = tf.cond(bool_place_holder, lambda: tf.reduce_sum(tf.abs(grad_on_diff[1]), axis=0) lambda: tf.reduce_sum(tf.abs(L2_comp_prev - L2_comp_prev_adv), axis=0)
     return comp_vec_1, comp_vec_2
 
 def AFD(pruning_rate_per_layer):
     adv_feat_1, adv_feat_2 = compare(is_grad_compare)
     mask = utils.mask_vec(adv_feat_2, pruning_rate_per_layer)
-    inv_mask = (mask - 1) * -1
-    #L1_dc = L1 * utils.mask_vec(adv_feat_1, pruning_rate_per_layer)
-    L1_dc = L1
-    L2_dc_prev = tf.nn.relu(tf.matmul(L1_dc, W2) + B2)
-    L2_dc = L2_dc_prev * mask
-    L2_dc = L2_dc + tf.nn.relu(inv_mask * B2)
-    model_af = tf.matmul(L2_dc, W3) + B3
+    #L1_af = L1 * utils.mask_vec(adv_feat_1, pruning_rate_per_layer)
+    L1_af = L1
+    L2_af = tf.nn.relu(tf.matmul(L1_af, W2) * mask + B2)
+    model_af = tf.matmul(L2_af, W3) + B3
     return model_af
 
-model_af = AFD(rate_place_holder)
 '''''''''
 Random Feature Drop Model
 '''''''''
-def RAP(pruning_rate_per_layer):
+def RFD(pruning_rate_per_layer):
     ran_feat_1, ran_feat_2 = utils.random_vector(L1, L2)
+    mask = utils.mask_vec(ran_feat_2, pruning_rate_per_layer)
     #L1_rd = L1_rd_prev * utils.mask_vec(adv_feat_1, pruning_rate_per_layer)
     L1_rd = L1
-    L2_rd_prev = tf.nn.relu(tf.matmul(L1_rd, W2) + B2)
-    L2_rd = L2_rd_prev * utils.mask_vec(ran_feat_2, pruning_rate_per_layer)
+    L2_rd = tf.nn.relu(tf.matmul(L1_rd, W2) * mask + B2)
     model_rd = tf.matmul(L2_rd, W3) + B3
     return model_rd
 
-model_rd = RAP(rate_place_holder)
 '''''''''
-New Feature Drop Model
+Mild Adversarial Feature Drop Model
 '''''''''
-def approx_hessian_vector():
-    L1_new = tf.nn.relu(tf.matmul(X_small, W1) + B1)
-    L2_new = tf.nn.relu(tf.matmul(L1_new, W2) + B2)
-    #model_new = tf.matmul(L2_new, W3) + B3
-    #cost_new = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=model_new, labels=Y_small))
-    #grad_new = tf.gradients(cost_new, [L1_new, L2_new])
-    #h_approx_L1 = tf.reduce_sum(tf.abs(grad_new[0]), axis=0)
-    #h_approx_L2 = tf.reduce_sum(tf.abs(grad_new[1]), axis=0)
-    h_approx_L1 = tf.reduce_sum(tf.abs(L1_new), axis=0)
-    h_approx_L2 = tf.reduce_sum(tf.abs(L2_new), axis=0)
-    return h_approx_L1, h_approx_L2
+def MFD(pruning_rate_per_layer):
+    adv_feat_mf_1, adv_feat_mf_2 = compare(is_grad_compare)
+    #L1_mf = L1 * utils.mask_vec(adjusted_feat_1, pruning_rate_per_layer)
+    L1_mf = L1
+    L2_mf_prev = tf.matmul(L1_mf, W2)
+    _, mask = utils.prune(L2_mf_prev / adv_feat_mf_2, pruning_rate_per_layer)
+    L2_mf_prev = L2_mf_prev * mask
+    L2_mf = tf.nn.relu(L2_mf_prev + B2)
+    model_mf = tf.matmul(L2_mf, W3) + B3
+    return model_mf
 
-def NAP(pruning_rate_per_layer):
-    h_approx_L1, h_approx_L2 = approx_hessian_vector()
-    adv_feat_new_1, adv_feat_new_2 = compare()
-    adjusted_feat_1 = adv_feat_new_1 / h_approx_L1
-    adjusted_feat_2 = adv_feat_new_2 / h_approx_L2
-    mask = utils.mask_vec(adjusted_feat_2, pruning_rate_per_layer)
-    inv_mask = (mask - 1) * -1
-    #L1_new = L1 * utils.mask_vec(adjusted_feat_1, pruning_rate_per_layer)
-    L1_new = L1
-    L2_new_prev = tf.nn.relu(tf.matmul(L1_new, W2) + B2)
-    L2_new = L2_new_prev * mask
-    L2_new = L2_new + tf.nn.relu(B2 * inv_mask)
-    #L2_new = L2_new_prev * utils.mask_vec(adv_feat_new_2 / tf.reduce_sum(tf.abs(L2), axis=0), pruning_rate_per_layer)
-    model_new = tf.matmul(L2_new, W3) + B3
-    return model_new
+'''''''''
+Iterative Adversarial Feature Drop Model
+'''''''''
 
-model_new = NAP(rate_place_holder)
+
+'''''''''
+Model creation
+'''''''''
+model_ap = MBAP(rate_place_holder)
+model_mb = MBFD(rate_place_holder)
+model_af = AFD(rate_place_holder)
+model_rd = RFD(rate_place_holder)
+model_mf = MFD(rate_place_holder)
 '''''''''
 '''''''''
 
@@ -247,9 +255,6 @@ for i in range(len(XADV)):
                                            keep_prob: 1.0,
                                            rate_place_holder: 10+j}))
 
-#import matplotlib
-#matplotlib.use('tkagg')
-#import matplotlib.pyplot as plt
 #def gen_image(arr):
 #    two_d = (np.reshape(arr, (28, 28)) * 255).astype(np.uint8)
 #    plt.imshow(two_d, interpolation='nearest')
