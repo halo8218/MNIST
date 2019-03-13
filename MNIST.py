@@ -19,6 +19,7 @@ keep_prob = tf.placeholder(tf.float32)
 is_grad_compare = tf.placeholder(tf.bool)
 is_first = tf.placeholder(tf.bool)
 is_last = tf.placeholder(tf.bool)
+is_total_count = tf.placeholder(tf.bool)
 
 rate_place_holder = tf.placeholder(tf.int32, [])
 
@@ -200,8 +201,9 @@ def _body(pruning_rate_per_layer, mask_1, mask_2, i):
     adv_feat_2 = tf.reduce_sum(tf.abs(grad_on_diff[1]), axis=0) * mask_2
 
     pruning_rate = pruning_rate_per_layer / iter_num
-    tmp_mask_1 = utils.mask_vec(adv_feat_1, pruning_rate) * mask_1
-    tmp_mask_2 = utils.mask_vec(adv_feat_2, pruning_rate) * mask_2
+    tmp_mask = tf.cond(is_total_count, lambda: utils.mask_total([adv_feat_1, adv_feat_2], pruning_rate), lambda: [utils.mask_vec(adv_feat_1, pruning_rate), utils.mask_vec(adv_feat_2, pruning_rate)])
+    tmp_mask_1 = tmp_mask[0] * mask_1
+    tmp_mask_2 = tmp_mask[1] * mask_2
     return pruning_rate_per_layer, tmp_mask_1, tmp_mask_2, i+1
 
 def IAFD(pruning_rate_per_layer):
@@ -265,6 +267,7 @@ acc_leg_af_mag = []
 acc_leg_mf = []
 acc_leg_gb = []
 acc_leg_ia = []
+acc_leg_ia_total = []
 acc_leg_rd_first = []
 acc_leg_rd_last = []
 acc_leg_rd_even = []
@@ -299,15 +302,15 @@ for j in range(len(XADV)):
     print('Acc on adversarial examples:', acc_leg_base)
     for i in range(20):
         acc_base.append(acc_leg_base)
-    for i in range(20):
-        acc_leg_ap_first.append(sess.run(accuracy_ap,
-                                feed_dict={X: XADV[j],
-                                           Y: YADV,
-                                           keep_prob: 1.,
-                                           is_first: True,
-                                           is_last: False,
-                                           rate_place_holder: i*5}))
-        print('Acc MBAP on legitimate, pruning rate: %d:'%(i*5), acc_leg_ap_first[i])
+    #for i in range(20):
+    #    acc_leg_ap_first.append(sess.run(accuracy_ap,
+    #                            feed_dict={X: XADV[j],
+    #                                       Y: YADV,
+    #                                       keep_prob: 1.,
+    #                                       is_first: True,
+    #                                       is_last: False,
+    #                                       rate_place_holder: i*5}))
+    #    print('Acc MBAP on legitimate, pruning rate: %d:'%(i*5), acc_leg_ap_first[i])
     for i in range(20):
         acc_leg_ap_last.append(sess.run(accuracy_ap,
                                 feed_dict={X: XADV[j],
@@ -333,18 +336,18 @@ for j in range(len(XADV)):
     #                                       keep_prob: 1.,
     #                                       rate_place_holder: i*5}))
     #    print('Acc MBFD on legitimate, pruning rate: %d:'%(i*5), acc_leg_mb[i])
-    for i in range(20):
-        acc_leg_af_gra_first.append(sess.run(accuracy_af,
-                                feed_dict={X: XADV[j],
-                                           Y: YADV,
-                                           is_grad_compare: True,
-                                           is_first: True,
-                                           is_last: False,
-                                           X_small: X_comp,
-                                           Y_small: Y_comp,
-                                           keep_prob: 1.,
-                                           rate_place_holder: i*5}))
-        print('Acc AFD-gradients on legitimate, pruning rate: %d:'%(i*5), acc_leg_af_gra_first[i]) 
+    #for i in range(20):
+    #    acc_leg_af_gra_first.append(sess.run(accuracy_af,
+    #                            feed_dict={X: XADV[j],
+    #                                       Y: YADV,
+    #                                       is_grad_compare: True,
+    #                                       is_first: True,
+    #                                       is_last: False,
+    #                                       X_small: X_comp,
+    #                                       Y_small: Y_comp,
+    #                                       keep_prob: 1.,
+    #                                       rate_place_holder: i*5}))
+    #    print('Acc AFD-gradients on legitimate, pruning rate: %d:'%(i*5), acc_leg_af_gra_first[i]) 
     for i in range(20):
         acc_leg_af_gra_last.append(sess.run(accuracy_af,
                                 feed_dict={X: XADV[j],
@@ -399,15 +402,15 @@ for j in range(len(XADV)):
     #                                       keep_prob: 1.,
     #                                       rate_place_holder: i*5}))
     #    print('Acc MFD on legitimate, pruning rate: %d:'%(i*5), acc_leg_gb[i])
-    for i in range(20):
-        acc_leg_rd_first.append(sess.run(accuracy_rd,
-                                feed_dict={X: XADV[j],
-                                           Y: YADV,
-                                           keep_prob: 1.,
-                                           is_first: True,
-                                           is_last: False,
-                                           rate_place_holder: i*5}))
-        print('Acc RFD on legitimate, pruning rate: %d:'%(i*5), acc_leg_rd_first[i]) 
+    #for i in range(20):
+    #    acc_leg_rd_first.append(sess.run(accuracy_rd,
+    #                            feed_dict={X: XADV[j],
+    #                                       Y: YADV,
+    #                                       keep_prob: 1.,
+    #                                       is_first: True,
+    #                                       is_last: False,
+    #                                       rate_place_holder: i*5}))
+    #    print('Acc RFD on legitimate, pruning rate: %d:'%(i*5), acc_leg_rd_first[i]) 
     for i in range(20):
         acc_leg_rd_last.append(sess.run(accuracy_rd,
                                 feed_dict={X: XADV[j],
@@ -432,9 +435,20 @@ for j in range(len(XADV)):
                                            Y: YADV,
                                            X_small: X_comp,
                                            Y_small: Y_comp,
+                                           is_total_count: False,
                                            keep_prob: 1.,
                                            rate_place_holder: i*5}))
-        print('Acc MFD on legitimate, pruning rate: %d:'%(i*5), acc_leg_ia[i])
+        print('Acc IAFD-even on legitimate, pruning rate: %d:'%(i*5), acc_leg_ia[i])
+    #for i in range(20):
+    #    acc_leg_ia_total.append(sess.run(accuracy_ia,
+    #                            feed_dict={X: XADV[j],
+    #                                       Y: YADV,
+    #                                       X_small: X_comp,
+    #                                       Y_small: Y_comp,
+    #                                       is_total_count: True,
+    #                                       keep_prob: 1.,
+    #                                       rate_place_holder: i*5}))
+    #    print('Acc IAFD-total on legitimate, pruning rate: %d:'%(i*5), acc_leg_ia_total[i])
 
 '''''''''
 Graph settings
@@ -445,71 +459,75 @@ for i in range(len(epsilon)-1):
     graph_base = fig.add_subplot(2,1,1)
     graph_adv = fig.add_subplot(2,1,2)
     y_0 = acc_base[0:len(x_axis)]
-    y_1_first = acc_leg_ap_first[0:len(x_axis)]
+    #y_1_first = acc_leg_ap_first[0:len(x_axis)]
     y_1_last = acc_leg_ap_last[0:len(x_axis)]
     y_1_even = acc_leg_ap_even[0:len(x_axis)]
     #y_2 = acc_leg_mb[0:len(x_axis)]
-    y_3_first = acc_leg_af_gra_first[0:len(x_axis)]
+    #y_3_first = acc_leg_af_gra_first[0:len(x_axis)]
     y_3_last = acc_leg_af_gra_last[0:len(x_axis)]
     y_3_even = acc_leg_af_gra_even[0:len(x_axis)]
     #y_4 = acc_leg_af_mag[0:len(x_axis)]
     #y_5 = acc_leg_mf[0:len(x_axis)]
-    y_6_first = acc_leg_rd_first[0:len(x_axis)]
+    #y_6_first = acc_leg_rd_first[0:len(x_axis)]
     y_6_last = acc_leg_rd_last[0:len(x_axis)]
     y_6_even = acc_leg_rd_even[0:len(x_axis)]
     #y_7 = acc_leg_gb[0:len(x_axis)]
     y_8 = acc_leg_ia[0:len(x_axis)]
+    #y_9 = acc_leg_ia_total[0:len(x_axis)]
 
     idx_start = (i+1)*len(x_axis)
     idx_end = (i+2)*len(x_axis)
     y_adv_0 = acc_base[idx_start:idx_end]
-    y_adv_1_first = acc_leg_ap_first[idx_start:idx_end]
+    #y_adv_1_first = acc_leg_ap_first[idx_start:idx_end]
     y_adv_1_last = acc_leg_ap_last[idx_start:idx_end]
     y_adv_1_even = acc_leg_ap_even[idx_start:idx_end]
     #y_adv_2 = acc_leg_mb[idx_start:idx_end]
-    y_adv_3_first = acc_leg_af_gra_first[idx_start:idx_end]
+    #y_adv_3_first = acc_leg_af_gra_first[idx_start:idx_end]
     y_adv_3_last = acc_leg_af_gra_last[idx_start:idx_end]
     y_adv_3_even = acc_leg_af_gra_even[idx_start:idx_end]
     #y_adv_4 = acc_leg_af_mag[idx_start:idx_end]
     #y_adv_5 = acc_leg_mf[idx_start:idx_end]
-    y_adv_6_first = acc_leg_rd_first[idx_start:idx_end]
+    #y_adv_6_first = acc_leg_rd_first[idx_start:idx_end]
     y_adv_6_last = acc_leg_rd_last[idx_start:idx_end]
     y_adv_6_even = acc_leg_rd_even[idx_start:idx_end]
     #y_adv_7 = acc_leg_gb[idx_start:idx_end]
     y_adv_8 = acc_leg_ia[idx_start:idx_end]
+    #y_adv_9 = acc_leg_ia_total[idx_start:idx_end]
 
-    graph_base.plot(x_axis, y_1_first, label='activation pruning - first layer')
+    #graph_base.plot(x_axis, y_1_first, label='activation pruning - first layer')
     graph_base.plot(x_axis, y_1_last, label='activation pruning - last layer')
     graph_base.plot(x_axis, y_1_even, label='activation pruning - both layer')
     #graph_base.plot(x_axis, y_2, label='magnitude based feature drop')
-    graph_base.plot(x_axis, y_3_first, label='adversarial feature drop, gradients base - first layer')
+    #graph_base.plot(x_axis, y_3_first, label='adversarial feature drop, gradients base - first layer')
     graph_base.plot(x_axis, y_3_last, label='adversarial feature drop, gradients base - last layer')
     graph_base.plot(x_axis, y_3_even, label='adversarial feature drop, gradients base - both layer')
     #graph_base.plot(x_axis, y_4, label='adversarial feature drop, magnitude gap base')
     #graph_base.plot(x_axis, y_5, label='mild adversarial feature drop')
-    graph_base.plot(x_axis, y_6_first, label='random feature drop - firtst')
+    #graph_base.plot(x_axis, y_6_first, label='random feature drop - firtst')
     graph_base.plot(x_axis, y_6_last, label='random feature drop - last')
     graph_base.plot(x_axis, y_6_even, label='random feature drop - even')
     #graph_base.plot(x_axis, y_7, label='gradients based activation pruning')
-    graph_base.plot(x_axis, y_8, label='iterative gradients based feature drop - both layer')
+    graph_base.plot(x_axis, y_8, label='iterative gradients based feature drop - both; even')
+    #graph_base.plot(x_axis, y_9, label='iterative gradients based feature drop - both; total')
     graph_base.plot(x_axis, y_0, '--', label='base')
     graph_base.set_xlabel('Pruning rate')
     graph_base.set_ylabel('Accuracy in clean MNIST')
 
-    graph_adv.plot(x_axis, y_adv_1_first, label='activation pruning - first layer')
-    graph_adv.plot(x_axis, y_adv_1_last,  label='activation pruning - last layer ')
-    graph_adv.plot(x_axis, y_adv_1_even,  label='activation pruning - both layer ')
+    #graph_adv.plot(x_axis, y_adv_1_first, label='activation pruning - first layer')
+    graph_adv.plot(x_axis, y_adv_1_last,  label='activation pruning - last')
+    graph_adv.plot(x_axis, y_adv_1_even,  label='activation pruning - both')
     #graph_adv.plot(x_axis, y_adv_2, label='magnitude based feature drop')
-    graph_adv.plot(x_axis, y_adv_3_first, label='adversarial feature drop, gradients base - first layer')
-    graph_adv.plot(x_axis, y_adv_3_last,  label='adversarial feature drop, gradients base - last layer ')
-    graph_adv.plot(x_axis, y_adv_3_even,  label='adversarial feature drop, gradients base - both layer ')
+    #graph_adv.plot(x_axis, y_adv_3_first, label='adversarial feature drop, gradients base - first layer')
+    graph_adv.plot(x_axis, y_adv_3_last,  label='adversarial feature drop, gradients base - last')
+    graph_adv.plot(x_axis, y_adv_3_even,  label='adversarial feature drop, gradients base - both')
     #graph_adv.plot(x_axis, y_adv_4, label='adversarial feature drop, magnitude gap base')
     #graph_adv.plot(x_axis, y_adv_5, label='mild adversarial feature drop')
-    graph_adv.plot(x_axis, y_adv_6_first, label='random feature drop - first layer')
-    graph_adv.plot(x_axis, y_adv_6_last,  label='random feature drop - last layer ')
-    graph_adv.plot(x_axis, y_adv_6_even,  label='random feature drop - both layer ')
+    #graph_adv.plot(x_axis, y_adv_6_first, label='random feature drop - first layer')
+    graph_adv.plot(x_axis, y_adv_6_last,  label='random feature drop - last')
+    graph_adv.plot(x_axis, y_adv_6_even,  label='random feature drop - both')
     #graph_adv.plot(x_axis, y_adv_7, label='gradients based activation pruning')
-    graph_adv.plot(x_axis, y_adv_8, label='iterative gradients based feature drop - both layer')
+    graph_adv.plot(x_axis, y_adv_8, label='iterative gradients based feature drop - both; even')
+    #graph_adv.plot(x_axis, y_adv_9, label='iterative gradients based feature drop - both; total')
     graph_adv.plot(x_axis, y_adv_0, '--', label='base')
     graph_adv.set_xlabel('Pruning rate')
     graph_adv.set_ylabel('Accuracy in adv MNIST; epsilon = %.2f'%epsilon[i+1])
