@@ -22,19 +22,19 @@ is_last = tf.placeholder(tf.bool)
 
 rate_place_holder = tf.placeholder(tf.int32, [])
 
-W1 = tf.Variable(tf.random_normal([784, 512], stddev=0.01))
-B1 = tf.Variable(tf.zeros([512]))
+W1 = tf.Variable(tf.random_normal([784, 300], stddev=0.01))
+B1 = tf.Variable(tf.zeros([300]))
 L1_prev = tf.matmul(X, W1)
 L1 = tf.nn.relu(L1_prev + B1)
 L1 = tf.nn.dropout(L1, keep_prob)
 
-W2 = tf.Variable(tf.random_normal([512, 256], stddev=0.01))
-B2 = tf.Variable(tf.zeros([256]))
+W2 = tf.Variable(tf.random_normal([300, 100], stddev=0.01))
+B2 = tf.Variable(tf.zeros([100]))
 L2_prev = tf.matmul(L1, W2)
 L2 = tf.nn.relu(L2_prev + B2)
 L2 = tf.nn.dropout(L2, keep_prob)
 
-W3 = tf.Variable(tf.random_normal([256, 10], stddev=0.01))
+W3 = tf.Variable(tf.random_normal([100, 10], stddev=0.01))
 B3 = tf.Variable(tf.zeros([10]))
 model = tf.matmul(L2, W3) + B3
 
@@ -42,7 +42,7 @@ cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=model, l
 optimizer = tf.train.AdamOptimizer(0.001).minimize(cost)
 
 grad = tf.gradients(cost, X)
-epsilon = np.arange(0., 0.35, 0.05)
+epsilon = np.arange(0., 0.22, 0.03)
 #epsilon = [0.075]
 xadv = [tf.stop_gradient(X + e*tf.sign(grad)) for e in epsilon]
 xadv = [tf.clip_by_value(adv, 0., 1.) for adv in xadv]
