@@ -40,8 +40,8 @@ cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=model, l
 optimizer = tf.train.AdamOptimizer(0.001).minimize(cost)
 
 grad = tf.gradients(cost, X)
-#epsilon = np.arange(0., 0.35, 0.05)
-epsilon = [0.075]
+epsilon = np.arange(0., 0.35, 0.05)
+#epsilon = [0.075]
 xadv = [tf.stop_gradient(X + e*tf.sign(grad)) for e in epsilon]
 xadv = [tf.clip_by_value(adv, 0., 1.) for adv in xadv]
 xadv = [tf.reshape(adv,[-1,784]) for adv in xadv]
@@ -181,6 +181,7 @@ batch_size = 128
 total_batch = int(mnist.train.num_examples / batch_size)
 
 rate_axis = range(0,100,5)
+acc_base = []
 acc_leg_ap = []
 acc_leg_mb = []
 acc_leg_af_gra = []
@@ -216,7 +217,8 @@ for j in range(len(XADV)):
                                        Y: YADV,
                                        keep_prob: 1.})
     print('Acc on adversarial examples:', acc_leg_base)
-    acc_base = [acc_leg_base for t in rate_axis]
+    for i in range(20):
+        acc_base.append(acc_leg_base)
     for i in range(20):
         acc_leg_ap.append(sess.run(accuracy_ap,
                                 feed_dict={X: XADV[j],
@@ -269,28 +271,54 @@ for j in range(len(XADV)):
                                            rate_place_holder: i*5}))
         print('Acc RFD on legitimate, pruning rate: %d:'%(i*5), acc_leg_rd[i]) 
 
-fig = plt.figure()
-graph = fig.add_subplot(1,1,1)
+'''''''''
+Graph settings
+'''''''''
 x_axis = rate_axis
-y_0 = acc_base[0:len(x_axis)]
-y_1 = acc_leg_ap[0:len(x_axis)]
-y_2 = acc_leg_mb[0:len(x_axis)]
-y_3 = acc_leg_af_gra[0:len(x_axis)]
-y_4 = acc_leg_af_mag[0:len(x_axis)]
-y_5 = acc_leg_mf[0:len(x_axis)]
-y_6 = acc_leg_rd[0:len(x_axis)]
-graph.plot(x_axis, y_1, label='activation pruning')
-graph.plot(x_axis, y_2, label='magnitude based feature drop')
-graph.plot(x_axis, y_3, label='adversarial feature drop, gradients base')
-graph.plot(x_axis, y_4, label='adversarial feature drop, magnitude gap base')
-graph.plot(x_axis, y_5, label='mild adversarial feature drop')
-graph.plot(x_axis, y_6, label='random feature drop')
-graph.plot(x_axis, y_0, '--', label='base')
-graph.set_xlabel('Pruning rate')
-graph.set_ylabel('Accuracy in MNIST')
+for i in range(len(epsilon)-1):
+    fig = plt.figure()
+    graph_base = fig.add_subplot(2,1,1)
+    graph_adv = fig.add_subplot(2,1,2)
+    y_0 = acc_base[0:len(x_axis)]
+    y_1 = acc_leg_ap[0:len(x_axis)]
+    y_2 = acc_leg_mb[0:len(x_axis)]
+    y_3 = acc_leg_af_gra[0:len(x_axis)]
+    y_4 = acc_leg_af_mag[0:len(x_axis)]
+    y_5 = acc_leg_mf[0:len(x_axis)]
+    y_6 = acc_leg_rd[0:len(x_axis)]
 
-plt.legend(loc='best')
-plt.show()
+    idx_start = (i+1)*len(x_axis)
+    idx_end = (i+2)*len(x_axis)
+    y_adv_0 = acc_base[idx_start:idx_end]
+    y_adv_1 = acc_leg_ap[idx_start:idx_end]
+    y_adv_2 = acc_leg_mb[idx_start:idx_end]
+    y_adv_3 = acc_leg_af_gra[idx_start:idx_end]
+    y_adv_4 = acc_leg_af_mag[idx_start:idx_end]
+    y_adv_5 = acc_leg_mf[idx_start:idx_end]
+    y_adv_6 = acc_leg_rd[idx_start:idx_end]
+
+    graph_base.plot(x_axis, y_1, label='activation pruning')
+    graph_base.plot(x_axis, y_2, label='magnitude based feature drop')
+    graph_base.plot(x_axis, y_3, label='adversarial feature drop, gradients base')
+    graph_base.plot(x_axis, y_4, label='adversarial feature drop, magnitude gap base')
+    graph_base.plot(x_axis, y_5, label='mild adversarial feature drop')
+    graph_base.plot(x_axis, y_6, label='random feature drop')
+    graph_base.plot(x_axis, y_0, '--', label='base')
+    graph_base.set_xlabel('Pruning rate')
+    graph_base.set_ylabel('Accuracy in clean MNIST')
+
+    graph_adv.plot(x_axis, y_adv_1, label='activation pruning')
+    graph_adv.plot(x_axis, y_adv_2, label='magnitude based feature drop')
+    graph_adv.plot(x_axis, y_adv_3, label='adversarial feature drop, gradients base')
+    graph_adv.plot(x_axis, y_adv_4, label='adversarial feature drop, magnitude gap base')
+    graph_adv.plot(x_axis, y_adv_5, label='mild adversarial feature drop')
+    graph_adv.plot(x_axis, y_adv_6, label='random feature drop')
+    graph_adv.plot(x_axis, y_adv_0, '--', label='base')
+    graph_adv.set_xlabel('Pruning rate')
+    graph_adv.set_ylabel('Accuracy in adv MNIST; epsilon = %.2f'%epsilon[i+1])
+    
+    plt.legend(loc='best')
+    plt.show()
 
 #def gen_image(arr):
 #    two_d = (np.reshape(arr, (28, 28)) * 255).astype(np.uint8)
