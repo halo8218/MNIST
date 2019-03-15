@@ -21,7 +21,7 @@ is_first = tf.placeholder(tf.bool)
 is_last = tf.placeholder(tf.bool)
 is_total_count = tf.placeholder(tf.bool)
 
-rate_place_holder = tf.placeholder(tf.int32, [])
+rate_place_holder = tf.placeholder(tf.float32, [])
 
 W1 = tf.Variable(tf.random_normal([784, 300], stddev=0.01))
 B1 = tf.Variable(tf.zeros([300]))
@@ -231,7 +231,6 @@ model_ia = IAFD(rate_place_holder)
 
 init = tf.global_variables_initializer()
 sess = tf.Session()
-sess.run(init)
 
 is_correct = tf.equal(tf.argmax(model, 1), tf.argmax(Y, 1))
 is_correct_ap = tf.equal(tf.argmax(model_ap, 1), tf.argmax(Y, 1))
@@ -255,201 +254,241 @@ batch_size = 128
 total_batch = int(mnist.train.num_examples / batch_size)
 
 rate_axis = range(0,100,5)
-acc_base = []
-acc_leg_ap_first = []
-acc_leg_ap_last = []
-acc_leg_ap_even = []
-acc_leg_mb = []
-acc_leg_af_gra_first = []
-acc_leg_af_gra_last = []
-acc_leg_af_gra_even = []
-acc_leg_af_mag = []
-acc_leg_mf = []
-acc_leg_gb = []
-acc_leg_ia = []
-acc_leg_ia_total = []
-acc_leg_rd_first = []
-acc_leg_rd_last = []
-acc_leg_rd_even = []
 
-for epoch in range(30):
-    total_cost = 0
+dict = {}
+dict['acc_base'] = []
+dict['acc_leg_ap_first'] = []
+dict['acc_leg_ap_last'] = []
+dict['acc_leg_ap_even'] = []
+dict['acc_leg_mb'] = []
+dict['acc_leg_af_gra_first'] = []
+dict['acc_leg_af_gra_last'] = []
+dict['acc_leg_af_gra_even'] = []
+dict['acc_leg_af_mag'] = []
+dict['acc_leg_mf'] = []
+dict['acc_leg_gb'] = []
+dict['acc_leg_ia'] = []
+dict['acc_leg_ia_total'] = []
+dict['acc_leg_rd_first'] = []
+dict['acc_leg_rd_last'] = []
+dict['acc_leg_rd_even'] = []
+num_avg = 3
+for k in range(num_avg):
+    acc_base = []
+    acc_leg_ap_first = []
+    acc_leg_ap_last = []
+    acc_leg_ap_even = []
+    acc_leg_mb = []
+    acc_leg_af_gra_first = []
+    acc_leg_af_gra_last = []
+    acc_leg_af_gra_even = []
+    acc_leg_af_mag = []
+    acc_leg_mf = []
+    acc_leg_gb = []
+    acc_leg_ia = []
+    acc_leg_ia_total = []
+    acc_leg_rd_first = []
+    acc_leg_rd_last = []
+    acc_leg_rd_even = []
 
-    for i in range(total_batch):
-        batch_xs, batch_ys = mnist.train.next_batch(batch_size)
+    sess.run(init)
 
-        _, cost_val = sess.run([optimizer, cost], feed_dict={X: batch_xs, Y: batch_ys, keep_prob: 0.8})
-        total_cost += cost_val
+    for epoch in range(30):
+        total_cost = 0
+    
+        for i in range(total_batch):
+            batch_xs, batch_ys = mnist.train.next_batch(batch_size)
+    
+            _, cost_val = sess.run([optimizer, cost], feed_dict={X: batch_xs, Y: batch_ys, keep_prob: 0.8})
+            total_cost += cost_val
+    
+        print('Epoch:', '%04d' % (epoch + 1),
+              'Avg. cost =', '{:.3f}'.format(total_cost / total_batch))
+    
+    print('Training completed!')
+    
+    base_acc = sess.run(accuracy,feed_dict={X: mnist.test.images,
+                                       keep_prob: 1.,
+                                       Y: mnist.test.labels})
+    print('Acc on legitimate:', base_acc)
+    
+    print('Make adversarial test sets')
+    XADV, YADV = sess.run([xadv, yadv], feed_dict={X: mnist.test.images, Y: mnist.test.labels, keep_prob: 1.})
 
-    print('Epoch:', '%04d' % (epoch + 1),
-          'Avg. cost =', '{:.3f}'.format(total_cost / total_batch))
-
-print('Training completed!')
-
-base_acc = sess.run(accuracy,feed_dict={X: mnist.test.images,
-                                   keep_prob: 1.,
-                                   Y: mnist.test.labels})
-print('Acc on legitimate:', base_acc)
-
-print('Make adversarial test sets')
-XADV, YADV = sess.run([xadv, yadv], feed_dict={X: mnist.test.images, Y: mnist.test.labels, keep_prob: 1.})
-
-for j in range(len(XADV)):
-    acc_leg_base = sess.run(accuracy,
-                            feed_dict={X: XADV[j],
-                                       Y: YADV,
-                                       keep_prob: 1.})
-    print('Acc on adversarial examples:', acc_leg_base)
-    for i in range(20):
-        acc_base.append(acc_leg_base)
-    #for i in range(20):
-    #    acc_leg_ap_first.append(sess.run(accuracy_ap,
-    #                            feed_dict={X: XADV[j],
-    #                                       Y: YADV,
-    #                                       keep_prob: 1.,
-    #                                       is_first: True,
-    #                                       is_last: False,
-    #                                       rate_place_holder: i*5}))
-    #    print('Acc MBAP on legitimate, pruning rate: %d:'%(i*5), acc_leg_ap_first[i])
-    for i in range(20):
-        acc_leg_ap_last.append(sess.run(accuracy_ap,
+    for j in range(len(XADV)):
+        acc_leg_base = sess.run(accuracy,
                                 feed_dict={X: XADV[j],
                                            Y: YADV,
-                                           keep_prob: 1.,
-                                           is_first: False,
-                                           is_last: True,
-                                           rate_place_holder: i*5}))
-        print('Acc MBAP on legitimate, pruning rate: %d:'%(i*5), acc_leg_ap_last[i])
-    for i in range(20):
-        acc_leg_ap_even.append(sess.run(accuracy_ap,
-                                feed_dict={X: XADV[j],
-                                           Y: YADV,
-                                           keep_prob: 1.,
-                                           is_first: True,
-                                           is_last: True,
-                                           rate_place_holder: i*5}))
-        print('Acc MBAP on legitimate, pruning rate: %d:'%(i*5), acc_leg_ap_even[i])
-    #for i in range(20):
-    #    acc_leg_mb.append(sess.run(accuracy_mb,
-    #                            feed_dict={X: XADV[j],
-    #                                       Y: YADV,
-    #                                       keep_prob: 1.,
-    #                                       rate_place_holder: i*5}))
-    #    print('Acc MBFD on legitimate, pruning rate: %d:'%(i*5), acc_leg_mb[i])
-    #for i in range(20):
-    #    acc_leg_af_gra_first.append(sess.run(accuracy_af,
-    #                            feed_dict={X: XADV[j],
-    #                                       Y: YADV,
-    #                                       is_grad_compare: True,
-    #                                       is_first: True,
-    #                                       is_last: False,
-    #                                       X_small: X_comp,
-    #                                       Y_small: Y_comp,
-    #                                       keep_prob: 1.,
-    #                                       rate_place_holder: i*5}))
-    #    print('Acc AFD-gradients on legitimate, pruning rate: %d:'%(i*5), acc_leg_af_gra_first[i]) 
-    for i in range(20):
-        acc_leg_af_gra_last.append(sess.run(accuracy_af,
-                                feed_dict={X: XADV[j],
-                                           Y: YADV,
-                                           is_grad_compare: True,
-                                           is_first: False,
-                                           is_last: True,
-                                           X_small: X_comp,
-                                           Y_small: Y_comp,
-                                           keep_prob: 1.,
-                                           rate_place_holder: i*5}))
-        print('Acc AFD-gradients on legitimate, pruning rate: %d:'%(i*5), acc_leg_af_gra_last[i])
-    for i in range(20):
-        acc_leg_af_gra_even.append(sess.run(accuracy_af,
-                                feed_dict={X: XADV[j],
-                                           Y: YADV,
-                                           is_grad_compare: True,
-                                           is_first: True,
-                                           is_last: True,
-                                           X_small: X_comp,
-                                           Y_small: Y_comp,
-                                           keep_prob: 1.,
-                                           rate_place_holder: i*5}))
-        print('Acc AFD-gradients on legitimate, pruning rate: %d:'%(i*5), acc_leg_af_gra_even[i]) 
-    #for i in range(20):
-    #    acc_leg_af_mag.append(sess.run(accuracy_af,
-    #                            feed_dict={X: XADV[j],
-    #                                       Y: YADV,
-    #                                       is_grad_compare: False,
-    #                                       X_small: X_comp,
-    #                                       Y_small: Y_comp,
-    #                                       keep_prob: 1.,
-    #                                       rate_place_holder: i*5}))
-    #    print('Acc AFD-magnitude on legitimate, pruning rate: %d:'%(i*5), acc_leg_af_mag[i]) 
-    #for i in range(20):
-    #    acc_leg_mf.append(sess.run(accuracy_mf,
-    #                            feed_dict={X: XADV[j],
-    #                                       Y: YADV,
-    #                                       is_grad_compare: False,
-    #                                       X_small: X_comp,
-    #                                       Y_small: Y_comp,
-    #                                       keep_prob: 1.,
-    #                                       rate_place_holder: i*5}))
-    #    print('Acc MFD on legitimate, pruning rate: %d:'%(i*5), acc_leg_mf[i])
-    #for i in range(20):
-    #    acc_leg_gb.append(sess.run(accuracy_gb,
-    #                            feed_dict={X: XADV[j],
-    #                                       Y: YADV,
-    #                                       is_grad_compare: False,
-    #                                       X_small: X_comp,
-    #                                       Y_small: Y_comp,
-    #                                       keep_prob: 1.,
-    #                                       rate_place_holder: i*5}))
-    #    print('Acc MFD on legitimate, pruning rate: %d:'%(i*5), acc_leg_gb[i])
-    #for i in range(20):
-    #    acc_leg_rd_first.append(sess.run(accuracy_rd,
-    #                            feed_dict={X: XADV[j],
-    #                                       Y: YADV,
-    #                                       keep_prob: 1.,
-    #                                       is_first: True,
-    #                                       is_last: False,
-    #                                       rate_place_holder: i*5}))
-    #    print('Acc RFD on legitimate, pruning rate: %d:'%(i*5), acc_leg_rd_first[i]) 
-    for i in range(20):
-        acc_leg_rd_last.append(sess.run(accuracy_rd,
-                                feed_dict={X: XADV[j],
-                                           Y: YADV,
-                                           keep_prob: 1.,
-                                           is_first: False,
-                                           is_last: True,
-                                           rate_place_holder: i*5}))
-        print('Acc RFD on legitimate, pruning rate: %d:'%(i*5), acc_leg_rd_last[i]) 
-    for i in range(20):
-        acc_leg_rd_even.append(sess.run(accuracy_rd,
-                                feed_dict={X: XADV[j],
-                                           Y: YADV,
-                                           is_first: True,
-                                           is_last: True,
-                                           keep_prob: 1.,
-                                           rate_place_holder: i*5}))
-        print('Acc RFD on legitimate, pruning rate: %d:'%(i*5), acc_leg_rd_even[i]) 
-    for i in range(20):
-        acc_leg_ia.append(sess.run(accuracy_ia,
-                                feed_dict={X: XADV[j],
-                                           Y: YADV,
-                                           X_small: X_comp,
-                                           Y_small: Y_comp,
-                                           is_total_count: False,
-                                           keep_prob: 1.,
-                                           rate_place_holder: i*5}))
-        print('Acc IAFD-even on legitimate, pruning rate: %d:'%(i*5), acc_leg_ia[i])
-    #for i in range(20):
-    #    acc_leg_ia_total.append(sess.run(accuracy_ia,
-    #                            feed_dict={X: XADV[j],
-    #                                       Y: YADV,
-    #                                       X_small: X_comp,
-    #                                       Y_small: Y_comp,
-    #                                       is_total_count: True,
-    #                                       keep_prob: 1.,
-    #                                       rate_place_holder: i*5}))
-    #    print('Acc IAFD-total on legitimate, pruning rate: %d:'%(i*5), acc_leg_ia_total[i])
+                                           keep_prob: 1.})
+        #print('Acc on adversarial examples:', acc_leg_base)
+        for i in range(20):
+            acc_base.append(acc_leg_base)
+        #for i in range(20):
+        #    acc_leg_ap_first.append(sess.run(accuracy_ap,
+        #                            feed_dict={X: XADV[j],
+        #                                       Y: YADV,
+        #                                       keep_prob: 1.,
+        #                                       is_first: True,
+        #                                       is_last: False,
+        #                                       rate_place_holder: i*5}))
+        #    print('Acc MBAP on legitimate, pruning rate: %d:'%(i*5), acc_leg_ap_first[i])
+        for i in range(20):
+            acc_leg_ap_last.append(sess.run(accuracy_ap,
+                                    feed_dict={X: XADV[j],
+                                               Y: YADV,
+                                               keep_prob: 1.,
+                                               is_first: False,
+                                               is_last: True,
+                                               rate_place_holder: i*5}))
+        #    print('Acc MBAP on legitimate, pruning rate: %d:'%(i*5), acc_leg_ap_last[i])
+        for i in range(20):
+            acc_leg_ap_even.append(sess.run(accuracy_ap,
+                                    feed_dict={X: XADV[j],
+                                               Y: YADV,
+                                               keep_prob: 1.,
+                                               is_first: True,
+                                               is_last: True,
+                                               rate_place_holder: i*5}))
+        #    print('Acc MBAP on legitimate, pruning rate: %d:'%(i*5), acc_leg_ap_even[i])
+        #for i in range(20):
+        #    acc_leg_mb.append(sess.run(accuracy_mb,
+        #                            feed_dict={X: XADV[j],
+        #                                       Y: YADV,
+        #                                       keep_prob: 1.,
+        #                                       rate_place_holder: i*5}))
+        #    print('Acc MBFD on legitimate, pruning rate: %d:'%(i*5), acc_leg_mb[i])
+        #for i in range(20):
+        #    acc_leg_af_gra_first.append(sess.run(accuracy_af,
+        #                            feed_dict={X: XADV[j],
+        #                                       Y: YADV,
+        #                                       is_grad_compare: True,
+        #                                       is_first: True,
+        #                                       is_last: False,
+        #                                       X_small: X_comp,
+        #                                       Y_small: Y_comp,
+        #                                       keep_prob: 1.,
+        #                                       rate_place_holder: i*5}))
+        #    print('Acc AFD-gradients on legitimate, pruning rate: %d:'%(i*5), acc_leg_af_gra_first[i]) 
+        for i in range(20):
+            acc_leg_af_gra_last.append(sess.run(accuracy_af,
+                                    feed_dict={X: XADV[j],
+                                               Y: YADV,
+                                               is_grad_compare: True,
+                                               is_first: False,
+                                               is_last: True,
+                                               X_small: X_comp,
+                                               Y_small: Y_comp,
+                                               keep_prob: 1.,
+                                               rate_place_holder: i*5}))
+        #    print('Acc AFD-gradients on legitimate, pruning rate: %d:'%(i*5), acc_leg_af_gra_last[i])
+        for i in range(20):
+            acc_leg_af_gra_even.append(sess.run(accuracy_af,
+                                    feed_dict={X: XADV[j],
+                                               Y: YADV,
+                                               is_grad_compare: True,
+                                               is_first: True,
+                                               is_last: True,
+                                               X_small: X_comp,
+                                               Y_small: Y_comp,
+                                               keep_prob: 1.,
+                                               rate_place_holder: i*5}))
+            #print('Acc AFD-gradients on legitimate, pruning rate: %d:'%(i*5), acc_leg_af_gra_even[i]) 
+        #for i in range(20):
+        #    acc_leg_af_mag.append(sess.run(accuracy_af,
+        #                            feed_dict={X: XADV[j],
+        #                                       Y: YADV,
+        #                                       is_grad_compare: False,
+        #                                       X_small: X_comp,
+        #                                       Y_small: Y_comp,
+        #                                       keep_prob: 1.,
+        #                                       rate_place_holder: i*5}))
+        #    print('Acc AFD-magnitude on legitimate, pruning rate: %d:'%(i*5), acc_leg_af_mag[i]) 
+        #for i in range(20):
+        #    acc_leg_mf.append(sess.run(accuracy_mf,
+        #                            feed_dict={X: XADV[j],
+        #                                       Y: YADV,
+        #                                       is_grad_compare: False,
+        #                                       X_small: X_comp,
+        #                                       Y_small: Y_comp,
+        #                                       keep_prob: 1.,
+        #                                       rate_place_holder: i*5}))
+        #    print('Acc MFD on legitimate, pruning rate: %d:'%(i*5), acc_leg_mf[i])
+        #for i in range(20):
+        #    acc_leg_gb.append(sess.run(accuracy_gb,
+        #                            feed_dict={X: XADV[j],
+        #                                       Y: YADV,
+        #                                       is_grad_compare: False,
+        #                                       X_small: X_comp,
+        #                                       Y_small: Y_comp,
+        #                                       keep_prob: 1.,
+        #                                       rate_place_holder: i*5}))
+        #    print('Acc MFD on legitimate, pruning rate: %d:'%(i*5), acc_leg_gb[i])
+        #for i in range(20):
+        #    acc_leg_rd_first.append(sess.run(accuracy_rd,
+        #                            feed_dict={X: XADV[j],
+        #                                       Y: YADV,
+        #                                       keep_prob: 1.,
+        #                                       is_first: True,
+        #                                       is_last: False,
+        #                                       rate_place_holder: i*5}))
+        #    print('Acc RFD on legitimate, pruning rate: %d:'%(i*5), acc_leg_rd_first[i]) 
+        for i in range(20):
+            acc_leg_rd_last.append(sess.run(accuracy_rd,
+                                    feed_dict={X: XADV[j],
+                                               Y: YADV,
+                                               keep_prob: 1.,
+                                               is_first: False,
+                                               is_last: True,
+                                               rate_place_holder: i*5}))
+            #print('Acc RFD on legitimate, pruning rate: %d:'%(i*5), acc_leg_rd_last[i]) 
+        for i in range(20):
+            acc_leg_rd_even.append(sess.run(accuracy_rd,
+                                    feed_dict={X: XADV[j],
+                                               Y: YADV,
+                                               is_first: True,
+                                               is_last: True,
+                                               keep_prob: 1.,
+                                               rate_place_holder: i*5}))
+            #print('Acc RFD on legitimate, pruning rate: %d:'%(i*5), acc_leg_rd_even[i]) 
+        for i in range(20):
+            acc_leg_ia.append(sess.run(accuracy_ia,
+                                    feed_dict={X: XADV[j],
+                                               Y: YADV,
+                                               X_small: X_comp,
+                                               Y_small: Y_comp,
+                                               is_total_count: False,
+                                               keep_prob: 1.,
+                                               rate_place_holder: i*5}))
+            #print('Acc IAFD-even on legitimate, pruning rate: %d:'%(i*5), acc_leg_ia[i])
+        #for i in range(20):
+        #    acc_leg_ia_total.append(sess.run(accuracy_ia,
+        #                            feed_dict={X: XADV[j],
+        #                                       Y: YADV,
+        #                                       X_small: X_comp,
+        #                                       Y_small: Y_comp,
+        #                                       is_total_count: True,
+        #                                       keep_prob: 1.,
+        #                                       rate_place_holder: i*5}))
+        #    print('Acc IAFD-total on legitimate, pruning rate: %d:'%(i*5), acc_leg_ia_total[i])
+    dict['acc_base'].append(acc_base)
+    dict['acc_leg_ap_first'].append(acc_leg_ap_first)  
+    dict['acc_leg_ap_last'].append(acc_leg_ap_last)   
+    dict['acc_leg_ap_even'].append(acc_leg_ap_even)
+    dict['acc_leg_mb'].append(acc_leg_mb)
+    dict['acc_leg_af_gra_first'].append(acc_leg_af_gra_first)
+    dict['acc_leg_af_gra_last'].append(acc_leg_af_gra_last)
+    dict['acc_leg_af_gra_even'].append(acc_leg_af_gra_even)
+    dict['acc_leg_af_mag'].append(acc_leg_af_mag)
+    dict['acc_leg_mf'].append(acc_leg_mf)
+    dict['acc_leg_gb'].append(acc_leg_gb)
+    dict['acc_leg_ia'].append(acc_leg_ia) 
+    dict['acc_leg_ia_total'].append(acc_leg_ia_total)
+    dict['acc_leg_rd_first'].append(acc_leg_rd_first)
+    dict['acc_leg_rd_last'].append(acc_leg_rd_last)
+    dict['acc_leg_rd_even'].append(acc_leg_rd_even)
 
+for key in dict.keys():
+    dict[key] = utils.avg_of_lists(dict[key])
 '''''''''
 Graph settings
 '''''''''
@@ -458,40 +497,40 @@ for i in range(len(epsilon)-1):
     fig = plt.figure()
     graph_base = fig.add_subplot(2,1,1)
     graph_adv = fig.add_subplot(2,1,2)
-    y_0 = acc_base[0:len(x_axis)]
+    y_0 = dict['acc_base'][0:len(x_axis)]
     #y_1_first = acc_leg_ap_first[0:len(x_axis)]
-    y_1_last = acc_leg_ap_last[0:len(x_axis)]
-    y_1_even = acc_leg_ap_even[0:len(x_axis)]
+    y_1_last = dict['acc_leg_ap_last'][0:len(x_axis)]
+    y_1_even = dict['acc_leg_ap_even'][0:len(x_axis)]
     #y_2 = acc_leg_mb[0:len(x_axis)]
     #y_3_first = acc_leg_af_gra_first[0:len(x_axis)]
-    y_3_last = acc_leg_af_gra_last[0:len(x_axis)]
-    y_3_even = acc_leg_af_gra_even[0:len(x_axis)]
+    y_3_last = dict['acc_leg_af_gra_last'][0:len(x_axis)]
+    y_3_even = dict['acc_leg_af_gra_even'][0:len(x_axis)]
     #y_4 = acc_leg_af_mag[0:len(x_axis)]
     #y_5 = acc_leg_mf[0:len(x_axis)]
     #y_6_first = acc_leg_rd_first[0:len(x_axis)]
-    y_6_last = acc_leg_rd_last[0:len(x_axis)]
-    y_6_even = acc_leg_rd_even[0:len(x_axis)]
+    y_6_last = dict['acc_leg_rd_last'][0:len(x_axis)]
+    y_6_even = dict['acc_leg_rd_even'][0:len(x_axis)]
     #y_7 = acc_leg_gb[0:len(x_axis)]
-    y_8 = acc_leg_ia[0:len(x_axis)]
+    y_8 = dict['acc_leg_ia'][0:len(x_axis)]
     #y_9 = acc_leg_ia_total[0:len(x_axis)]
 
     idx_start = (i+1)*len(x_axis)
     idx_end = (i+2)*len(x_axis)
-    y_adv_0 = acc_base[idx_start:idx_end]
+    y_adv_0 = dict['acc_base'][idx_start:idx_end]
     #y_adv_1_first = acc_leg_ap_first[idx_start:idx_end]
-    y_adv_1_last = acc_leg_ap_last[idx_start:idx_end]
-    y_adv_1_even = acc_leg_ap_even[idx_start:idx_end]
+    y_adv_1_last = dict['acc_leg_ap_last'][idx_start:idx_end]
+    y_adv_1_even = dict['acc_leg_ap_even'][idx_start:idx_end]
     #y_adv_2 = acc_leg_mb[idx_start:idx_end]
     #y_adv_3_first = acc_leg_af_gra_first[idx_start:idx_end]
-    y_adv_3_last = acc_leg_af_gra_last[idx_start:idx_end]
-    y_adv_3_even = acc_leg_af_gra_even[idx_start:idx_end]
+    y_adv_3_last = dict['acc_leg_af_gra_last'][idx_start:idx_end]
+    y_adv_3_even = dict['acc_leg_af_gra_even'][idx_start:idx_end]
     #y_adv_4 = acc_leg_af_mag[idx_start:idx_end]
     #y_adv_5 = acc_leg_mf[idx_start:idx_end]
     #y_adv_6_first = acc_leg_rd_first[idx_start:idx_end]
-    y_adv_6_last = acc_leg_rd_last[idx_start:idx_end]
-    y_adv_6_even = acc_leg_rd_even[idx_start:idx_end]
+    y_adv_6_last = dict['acc_leg_rd_last'][idx_start:idx_end]
+    y_adv_6_even = dict['acc_leg_rd_even'][idx_start:idx_end]
     #y_adv_7 = acc_leg_gb[idx_start:idx_end]
-    y_adv_8 = acc_leg_ia[idx_start:idx_end]
+    y_adv_8 = dict['acc_leg_ia'][idx_start:idx_end]
     #y_adv_9 = acc_leg_ia_total[idx_start:idx_end]
 
     #graph_base.plot(x_axis, y_1_first, label='activation pruning - first layer')
