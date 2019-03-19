@@ -3,6 +3,7 @@ import numpy as np
 import utils
 import matplotlib
 matplotlib.use('tkagg')
+from matplotlib.font_manager import FontProperties
 import matplotlib.pyplot as plt
 
 from tensorflow.examples.tutorials.mnist import input_data
@@ -493,10 +494,13 @@ for key in dict.keys():
 Graph settings
 '''''''''
 x_axis = rate_axis
+fontP = FontProperties()
+fontP.set_size('small')
 for i in range(len(epsilon)-1):
     fig = plt.figure()
-    graph_base = fig.add_subplot(2,1,1)
-    graph_adv = fig.add_subplot(2,1,2)
+    graph_base = fig.add_subplot(311)
+    graph_adv = fig.add_subplot(312)
+    plt.tight_layout()
     y_0 = dict['acc_base'][0:len(x_axis)]
     #y_1_first = acc_leg_ap_first[0:len(x_axis)]
     y_1_last = dict['acc_leg_ap_last'][0:len(x_axis)]
@@ -538,8 +542,8 @@ for i in range(len(epsilon)-1):
     graph_base.plot(x_axis, y_1_even, label='activation pruning - both layer')
     #graph_base.plot(x_axis, y_2, label='magnitude based feature drop')
     #graph_base.plot(x_axis, y_3_first, label='adversarial feature drop, gradients base - first layer')
-    graph_base.plot(x_axis, y_3_last, label='adversarial feature drop, gradients base - last layer')
-    graph_base.plot(x_axis, y_3_even, label='adversarial feature drop, gradients base - both layer')
+    graph_base.plot(x_axis, y_3_last, label='adversarial feature drop - last layer')
+    graph_base.plot(x_axis, y_3_even, label='adversarial feature drop - both layer')
     #graph_base.plot(x_axis, y_4, label='adversarial feature drop, magnitude gap base')
     #graph_base.plot(x_axis, y_5, label='mild adversarial feature drop')
     #graph_base.plot(x_axis, y_6_first, label='random feature drop - firtst')
@@ -557,21 +561,22 @@ for i in range(len(epsilon)-1):
     graph_adv.plot(x_axis, y_adv_1_even,  label='activation pruning - both')
     #graph_adv.plot(x_axis, y_adv_2, label='magnitude based feature drop')
     #graph_adv.plot(x_axis, y_adv_3_first, label='adversarial feature drop, gradients base - first layer')
-    graph_adv.plot(x_axis, y_adv_3_last,  label='adversarial feature drop, gradients base - last')
-    graph_adv.plot(x_axis, y_adv_3_even,  label='adversarial feature drop, gradients base - both')
+    graph_adv.plot(x_axis, y_adv_3_last,  label='adversarial feature drop- last')
+    graph_adv.plot(x_axis, y_adv_3_even,  label='adversarial feature drop- both')
     #graph_adv.plot(x_axis, y_adv_4, label='adversarial feature drop, magnitude gap base')
     #graph_adv.plot(x_axis, y_adv_5, label='mild adversarial feature drop')
     #graph_adv.plot(x_axis, y_adv_6_first, label='random feature drop - first layer')
     graph_adv.plot(x_axis, y_adv_6_last,  label='random feature drop - last')
     graph_adv.plot(x_axis, y_adv_6_even,  label='random feature drop - both')
     #graph_adv.plot(x_axis, y_adv_7, label='gradients based activation pruning')
-    graph_adv.plot(x_axis, y_adv_8, label='iterative gradients based feature drop - both; even')
+    graph_adv.plot(x_axis, y_adv_8, label='iterative gradients based feature drop - both')
     #graph_adv.plot(x_axis, y_adv_9, label='iterative gradients based feature drop - both; total')
     graph_adv.plot(x_axis, y_adv_0, '--', label='base')
     graph_adv.set_xlabel('Pruning rate')
     graph_adv.set_ylabel('Accuracy in adv MNIST; epsilon = %.2f'%epsilon[i+1])
     
-    plt.legend(loc='best')
+    plt.legend(loc='lower center',ncol=2, prop=fontP, bbox_to_anchor=(0.5, -1.5))
+    #plt.savefig('test%.2f.png'%epsilon[i+1])
     plt.show()
 
 #def gen_image(arr):
