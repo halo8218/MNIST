@@ -2,3 +2,5 @@
 *.swp
 *test*
 *.log
+*.out
+*graph*
